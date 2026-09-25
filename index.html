@@ -921,7 +921,7 @@ const firebaseConfig = {
                 if (partner) {
                     partnerId = partner.uid;
                     await deleteDoc(doc(db, "waiting", partnerId));
-                   
+                    const roomId = `room_${Math.min(currentUserId.charCodeAt(0), partnerId.charCodeAt(0))}_${Date.now()}`;
                     currentRoomId = roomId;
 
                     await setDoc(doc(db, "rooms", roomId), {
