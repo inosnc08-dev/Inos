@@ -57,6 +57,142 @@
             gap: 8px;
         }
 
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* Country Picker Button */
+        .country-btn {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: border-color 0.2s;
+        }
+
+        .country-btn:hover {
+            border-color: var(--accent-red);
+        }
+
+        /* Modal ne Qender per Shtetet */
+        .country-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        .country-modal.active {
+            display: flex;
+        }
+
+        .country-modal-content {
+            background: var(--bg-primary);
+            width: 100%;
+            max-width: 420px;
+            height: 80vh;
+            max-height: 550px;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            overflow: hidden;
+            animation: modalScaleIn 0.2s ease-out;
+        }
+
+        @keyframes modalScaleIn {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .country-modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .country-modal-close {
+            background: none;
+            border: none;
+            font-size: 18px;
+            color: var(--text-muted);
+            cursor: pointer;
+        }
+
+        .country-search-box {
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+        }
+
+        .country-search-box input {
+            width: 100%;
+            padding: 8px 12px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-main);
+            font-size: 13px;
+            outline: none;
+        }
+
+        .country-search-box input:focus {
+            border-color: var(--accent-red);
+        }
+
+        .country-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .country-item {
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.15s;
+        }
+
+        .country-item:hover {
+            background: var(--bg-card);
+        }
+
+        .country-item.selected {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--accent-red);
+        }
+
+        .country-flag {
+            font-size: 18px;
+        }
+
         .online-badge {
             display: flex;
             align-items: center;
@@ -355,11 +491,33 @@
 
     <header>
         <div class="logo"><i class="fa-solid fa-video"></i> InosChat</div>
-        <div class="online-badge" id="onlineBadge">
-            <div class="online-dot"></div>
-            <span id="onlineCount">1 online</span>
+        <div class="header-right">
+            <button class="country-btn" id="openCountryModal">
+                <span id="selectedCountryLabel">🌍 Worldwide</span>
+                <i class="fa-solid fa-chevron-down" style="font-size: 10px;"></i>
+            </button>
+            <div class="online-badge" id="onlineBadge">
+                <div class="online-dot"></div>
+                <span id="onlineCount">1 online</span>
+            </div>
         </div>
     </header>
+
+    <!-- Modal per Zgjedhjen e Shtetit -->
+    <div class="country-modal" id="countryModal">
+        <div class="country-modal-content">
+            <div class="country-modal-header">
+                <span>Select Country</span>
+                <button class="country-modal-close" id="closeCountryModal"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="country-search-box">
+                <input type="text" id="countrySearchInput" placeholder="Search country...">
+            </div>
+            <div class="country-list" id="countryListContainer">
+                <!-- Mbushur dinamikisht me JavaScript -->
+            </div>
+        </div>
+    </div>
 
     <div class="main-container">
         <div class="video-container">
@@ -407,7 +565,7 @@
             collection, addDoc, query, getDocs, serverTimestamp, updateDoc 
         } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-      // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+       // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyBF0HmQbl833F0EndThqJs8mPGQLA9Y0JE",
   authDomain: "clipymax-d58fa.firebaseapp.com",
@@ -434,6 +592,132 @@ const firebaseConfig = {
         let currentRoomId = null, partnerId = null, isSearching = false, isConnected = false;
         let waitingUnsub = null, roomUnsub = null, msgUnsub = null, sigUnsub = null;
         let processedMsgIds = new Set();
+        let selectedCountryCode = 'all';
+
+        const countriesList = [
+            { code: 'all', name: 'Worldwide', flag: '🌍' },
+            { code: 'AF', name: 'Afghanistan', flag: '🇦🇫' },
+            { code: 'AL', name: 'Albania', flag: '🇦🇱' },
+            { code: 'DZ', name: 'Algeria', flag: '🇩🇿' },
+            { code: 'AD', name: 'Andorra', flag: '🇦🇩' },
+            { code: 'AO', name: 'Angola', flag: '🇦🇴' },
+            { code: 'AR', name: 'Argentina', flag: '🇦🇷' },
+            { code: 'AM', name: 'Armenia', flag: '🇦🇲' },
+            { code: 'AU', name: 'Australia', flag: '🇦🇺' },
+            { code: 'AT', name: 'Austria', flag: '🇦🇹' },
+            { code: 'AZ', name: 'Azerbaijan', flag: '🇦🇿' },
+            { code: 'BH', name: 'Bahrain', flag: '🇧🇭' },
+            { code: 'BD', name: 'Bangladesh', flag: '🇧🇩' },
+            { code: 'BY', name: 'Belarus', flag: '🇧🇾' },
+            { code: 'BE', name: 'Belgium', flag: '🇧🇪' },
+            { code: 'BZ', name: 'Belize', flag: '🇧🇿' },
+            { code: 'BJ', name: 'Benin', flag: '🇧🇯' },
+            { code: 'BT', name: 'Bhutan', flag: '🇧🇹' },
+            { code: 'BO', name: 'Bolivia', flag: '🇧🇴' },
+            { code: 'BA', name: 'Bosnia and Herzegovina', flag: '🇧🇦' },
+            { code: 'BW', name: 'Botswana', flag: '🇧🇼' },
+            { code: 'BR', name: 'Brazil', flag: '🇧🇷' },
+            { code: 'BN', name: 'Brunei', flag: '🇧🇳' },
+            { code: 'BG', name: 'Bulgaria', flag: '🇧🇬' },
+            { code: 'BF', name: 'Burkina Faso', flag: '🇧🇫' },
+            { code: 'BI', name: 'Burundi', flag: '🇧🇮' },
+            { code: 'KH', name: 'Cambodia', flag: '🇰🇭' },
+            { code: 'CM', name: 'Cameroon', flag: '🇨🇲' },
+            { code: 'CA', name: 'Canada', flag: '🇨🇦' },
+            { code: 'CL', name: 'Chile', flag: '🇨🇱' },
+            { code: 'CN', name: 'China', flag: '🇨🇳' },
+            { code: 'CO', name: 'Colombia', flag: '🇨🇴' },
+            { code: 'CR', name: 'Costa Rica', flag: '🇨🇷' },
+            { code: 'HR', name: 'Croatia', flag: '🇭🇷' },
+            { code: 'CU', name: 'Cuba', flag: '🇨🇺' },
+            { code: 'CY', name: 'Cyprus', flag: '🇨🇾' },
+            { code: 'CZ', name: 'Czech Republic', flag: '🇨🇿' },
+            { code: 'DK', name: 'Denmark', flag: '🇩🇰' },
+            { code: 'DO', name: 'Dominican Republic', flag: '🇩🇴' },
+            { code: 'EC', name: 'Ecuador', flag: '🇪🇨' },
+            { code: 'EG', name: 'Egypt', flag: '🇪🇬' },
+            { code: 'SV', name: 'El Salvador', flag: '🇸🇻' },
+            { code: 'EE', name: 'Estonia', flag: '🇪🇪' },
+            { code: 'ET', name: 'Ethiopia', flag: '🇪🇹' },
+            { code: 'FI', name: 'Finland', flag: '🇫🇮' },
+            { code: 'FR', name: 'France', flag: '🇫🇷' },
+            { code: 'GE', name: 'Georgia', flag: '🇬🇪' },
+            { code: 'DE', name: 'Germany', flag: '🇩🇪' },
+            { code: 'GH', name: 'Ghana', flag: '🇬🇭' },
+            { code: 'GR', name: 'Greece', flag: '🇬🇷' },
+            { code: 'GT', name: 'Guatemala', flag: '🇬🇹' },
+            { code: 'HN', name: 'Honduras', flag: '🇭🇳' },
+            { code: 'HK', name: 'Hong Kong', flag: '🇭🇰' },
+            { code: 'HU', name: 'Hungary', flag: '🇭🇺' },
+            { code: 'IS', name: 'Iceland', flag: '🇮🇸' },
+            { code: 'IN', name: 'India', flag: '🇮🇳' },
+            { code: 'ID', name: 'Indonesia', flag: '🇮🇩' },
+            { code: 'IR', name: 'Iran', flag: '🇮🇷' },
+            { code: 'IQ', name: 'Iraq', flag: '🇮🇶' },
+            { code: 'IE', name: 'Ireland', flag: '🇮🇪' },
+            { code: 'IL', name: 'Israel', flag: '🇮🇱' },
+            { code: 'IT', name: 'Italy', flag: '🇮🇹' },
+            { code: 'JP', name: 'Japan', flag: '🇯🇵' },
+            { code: 'JO', name: 'Jordan', flag: '🇯🇴' },
+            { code: 'KZ', name: 'Kazakhstan', flag: '🇰🇿' },
+            { code: 'KE', name: 'Kenya', flag: '🇰🇪' },
+            { code: 'XK', name: 'Kosovo', flag: '🇽🇰' },
+            { code: 'KW', name: 'Kuwait', flag: '🇰🇼' },
+            { code: 'LV', name: 'Latvia', flag: '🇱🇻' },
+            { code: 'LB', name: 'Lebanon', flag: '🇱🇧' },
+            { code: 'LY', name: 'Libya', flag: '🇱🇾' },
+            { code: 'LT', name: 'Lithuania', flag: '🇱🇹' },
+            { code: 'LU', name: 'Luxembourg', flag: '🇱🇺' },
+            { code: 'MY', name: 'Malaysia', flag: '🇲🇾' },
+            { code: 'MT', name: 'Malta', flag: '🇲🇹' },
+            { code: 'MX', name: 'Mexico', flag: '🇲🇽' },
+            { code: 'MD', name: 'Moldova', flag: '🇲🇩' },
+            { code: 'MC', name: 'Monaco', flag: '🇲🇨' },
+            { code: 'ME', name: 'Montenegro', flag: '🇲🇪' },
+            { code: 'MA', name: 'Morocco', flag: '🇲🇦' },
+            { code: 'NL', name: 'Netherlands', flag: '🇳🇱' },
+            { code: 'NZ', name: 'New Zealand', flag: '🇳🇿' },
+            { code: 'NG', name: 'Nigeria', flag: '🇳🇬' },
+            { code: 'NO', name: 'Norway', flag: '🇳🇴' },
+            { code: 'OM', name: 'Oman', flag: '🇴🇲' },
+            { code: 'PK', name: 'Pakistan', flag: '🇵🇰' },
+            { code: 'PS', name: 'Palestine', flag: '🇵🇸' },
+            { code: 'PA', name: 'Panama', flag: '🇵🇦' },
+            { code: 'PY', name: 'Paraguay', flag: '🇵🇾' },
+            { code: 'PE', name: 'Peru', flag: '🇵🇪' },
+            { code: 'PH', name: 'Philippines', flag: '🇵🇭' },
+            { code: 'PL', name: 'Poland', flag: '🇵🇱' },
+            { code: 'PT', name: 'Portugal', flag: '🇵🇹' },
+            { code: 'QA', name: 'Qatar', flag: '🇶🇦' },
+            { code: 'RO', name: 'Romania', flag: '🇷🇴' },
+            { code: 'RU', name: 'Russia', flag: '🇷🇺' },
+            { code: 'SA', name: 'Saudi Arabia', flag: '🇸🇦' },
+            { code: 'RS', name: 'Serbia', flag: '🇷🇸' },
+            { code: 'SG', name: 'Singapore', flag: '🇸🇬' },
+            { code: 'SK', name: 'Slovakia', flag: '🇸🇰' },
+            { code: 'SI', name: 'Slovenia', flag: '🇸🇮' },
+            { code: 'ZA', name: 'South Africa', flag: '🇿🇦' },
+            { code: 'KR', name: 'South Korea', flag: '🇰🇷' },
+            { code: 'ES', name: 'Spain', flag: '🇪🇸' },
+            { code: 'LK', name: 'Sri Lanka', flag: '🇱🇰' },
+            { code: 'SE', name: 'Sweden', flag: '🇸🇪' },
+            { code: 'CH', name: 'Switzerland', flag: '🇨🇭' },
+            { code: 'SY', name: 'Syria', flag: '🇸🇾' },
+            { code: 'TW', name: 'Taiwan', flag: '🇹🇼' },
+            { code: 'TZ', name: 'Tanzania', flag: '🇹🇿' },
+            { code: 'TH', name: 'Thailand', flag: '🇹🇭' },
+            { code: 'TN', name: 'Tunisia', flag: '🇹🇳' },
+            { code: 'TR', name: 'Turkey', flag: '🇹🇷' },
+            { code: 'UA', name: 'Ukraine', flag: '🇺🇦' },
+            { code: 'AE', name: 'United Arab Emirates', flag: '🇦🇪' },
+            { code: 'GB', name: 'United Kingdom', flag: '🇬🇧' },
+            { code: 'US', name: 'United States', flag: '🇺🇸' },
+            { code: 'UY', name: 'Uruguay', flag: '🇺🇾' },
+            { code: 'UZ', name: 'Uzbekistan', flag: '🇺🇿' },
+            { code: 'VE', name: 'Venezuela', flag: '🇻🇪' },
+            { code: 'VN', name: 'Vietnam', flag: '🇻🇳' },
+            { code: 'YE', name: 'Yemen', flag: '🇾🇪' }
+        ];
 
         const rtcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
@@ -442,6 +726,13 @@ const firebaseConfig = {
         const videoOverlay = document.getElementById("videoOverlay");
         const statusTitle = document.getElementById("statusTitle");
         const onlineBadge = document.getElementById("onlineBadge");
+        
+        const openCountryModal = document.getElementById("openCountryModal");
+        const closeCountryModal = document.getElementById("closeCountryModal");
+        const countryModal = document.getElementById("countryModal");
+        const countryListContainer = document.getElementById("countryListContainer");
+        const countrySearchInput = document.getElementById("countrySearchInput");
+        const selectedCountryLabel = document.getElementById("selectedCountryLabel");
 
         const startBtn = document.getElementById("startBtn");
         const stopBtn = document.getElementById("stopBtn");
@@ -453,6 +744,43 @@ const firebaseConfig = {
         const chatInput = document.getElementById("chatInput");
         const sendBtn = document.getElementById("sendBtn");
         const onlineCount = document.getElementById("onlineCount");
+
+        // Render Country List with Flags ONLY (No AL, UK text letters)
+        function renderCountries(filter = '') {
+            countryListContainer.innerHTML = '';
+            const filtered = countriesList.filter(c => c.name.toLowerCase().includes(filter.toLowerCase()));
+            
+            filtered.forEach(c => {
+                const div = document.createElement("div");
+                div.className = `country-item ${selectedCountryCode === c.code ? 'selected' : ''}`;
+                div.innerHTML = `<span class="country-flag">${c.flag}</span> <span>${c.name}</span>`;
+                div.onclick = () => {
+                    selectedCountryCode = c.code;
+                    selectedCountryLabel.innerHTML = `<span class="country-flag">${c.flag}</span> <span>${c.name}</span>`;
+                    countryModal.classList.remove("active");
+                };
+                countryListContainer.appendChild(div);
+            });
+        }
+
+        openCountryModal.onclick = () => {
+            renderCountries();
+            countryModal.classList.add("active");
+            countrySearchInput.value = '';
+            countrySearchInput.focus();
+        };
+
+        closeCountryModal.onclick = () => {
+            countryModal.classList.remove("active");
+        };
+
+        countryModal.onclick = (e) => {
+            if (e.target === countryModal) countryModal.classList.remove("active");
+        };
+
+        countrySearchInput.oninput = (e) => {
+            renderCountries(e.target.value);
+        };
 
         async function updatePresence() {
             if (!db) return;
@@ -485,11 +813,13 @@ const firebaseConfig = {
         function setHomeState(isHome) {
             if (isHome) {
                 onlineBadge.classList.remove("hidden");
+                openCountryModal.style.display = "flex";
                 startBtn.style.display = "inline-flex";
                 stopBtn.style.display = "none";
                 skipBtn.style.display = "none";
             } else {
                 onlineBadge.classList.add("hidden");
+                openCountryModal.style.display = "none";
                 startBtn.style.display = "none";
             }
         }
@@ -556,10 +886,14 @@ const firebaseConfig = {
                 const waitingRef = collection(db, "waiting");
                 const snap = await getDocs(query(waitingRef));
                 let partner = null;
+
                 for (let d of snap.docs) {
-                    if (d.data().uid !== currentUserId) {
-                        partner = d.data();
-                        break;
+                    const data = d.data();
+                    if (data.uid !== currentUserId) {
+                        if (selectedCountryCode === 'all' || data.country === selectedCountryCode || data.country === 'all') {
+                            partner = data;
+                            break;
+                        }
                     }
                 }
 
@@ -574,7 +908,10 @@ const firebaseConfig = {
                     });
                     setupRTC(roomId, true);
                 } else {
-                    await setDoc(doc(db, "waiting", currentUserId), { uid: currentUserId });
+                    await setDoc(doc(db, "waiting", currentUserId), { 
+                        uid: currentUserId, 
+                        country: selectedCountryCode 
+                    });
                     waitForPartner();
                 }
             } catch(e) {}
@@ -605,7 +942,6 @@ const firebaseConfig = {
 
             peerConnection = new RTCPeerConnection(rtcConfig);
             
-            // Shtimi i track-eve të lokal stream në lidhje
             if (localStream) {
                 localStream.getTracks().forEach(track => {
                     peerConnection.addTrack(track, localStream);
@@ -617,7 +953,11 @@ const firebaseConfig = {
                     remoteStream = new MediaStream();
                     remoteVideo.srcObject = remoteStream;
                 }
-                remoteStream.addTrack(e.track);
+                
+                if (!remoteStream.getTracks().includes(e.track)) {
+                    remoteStream.addTrack(e.track);
+                }
+
                 setStatus("", false);
                 chatInput.disabled = false;
                 sendBtn.disabled = false;
