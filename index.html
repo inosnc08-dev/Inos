@@ -336,7 +336,6 @@
 
     <div class="main-container">
         <div class="video-container">
-            <!-- Animacioni direkt mbi ekranin e videos -->
             <div class="video-overlay-status" id="videoOverlay">
                 <div class="epic-loader">
                     <div class="epic-ring"></div>
@@ -488,7 +487,7 @@ const firebaseConfig = {
             startBtn.style.display = "none";
             stopBtn.style.display = "inline-flex";
             skipBtn.style.display = "none";
-            setStatus("SEARCHING...", true);
+            setStatus("Searching...", true);
             findMatch();
         }
 
@@ -542,7 +541,7 @@ const firebaseConfig = {
         async function setupRTC(roomId, isInitiator) {
             isSearching = false;
             isConnected = true;
-            setStatus("SEARCHING...", true);
+            setStatus("Searching...", true);
 
             peerConnection = new RTCPeerConnection(rtcConfig);
             localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
@@ -643,7 +642,7 @@ const firebaseConfig = {
 
         function handleDisconnect() {
             if(!isConnected) return;
-            setStatus("SEARCHING...", true);
+            setStatus("Searching...", true);
             cleanupPC();
             skipBtn.click();
         }
