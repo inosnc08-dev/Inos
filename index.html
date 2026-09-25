@@ -844,15 +844,47 @@ const firebaseConfig = {
             }
         }
 
-        async function getMedia() {
-            localStream = await navigator.mediaDevices.getUserMedia({ 
-                video: { width: { ideal: 1280 }, height: { ideal: 720 } }, 
-                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
-            });
-            localVideo.srcObject = localStream;
-            btnMic.disabled = false;
-            btnCam.disabled = false;
-        }
+       async function getMedia() {
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            },
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            }
+        });
+
+        console.log("🎤 AUDIO TRACKS:",
+            localStream.getAudioTracks().map(track => ({
+                id: track.id,
+                enabled: track.enabled,
+                muted: track.muted,
+                readyState: track.readyState
+            }))
+        );
+
+        console.log("📹 VIDEO TRACKS:",
+            localStream.getVideoTracks().map(track => ({
+                id: track.id,
+                enabled: track.enabled,
+                readyState: track.readyState
+            }))
+        );
+
+        localVideo.srcObject = localStream;
+
+        btnMic.disabled = false;
+        btnCam.disabled = false;
+
+    } catch (error) {
+        console.error("MIC/KAMERA ERROR:", error);
+        alert("Nuk u hap mikrofoni/kamera: " + error.message);
+    }
+}
 
         let isMuted = false;
         btnMic.addEventListener("click", () => {
@@ -963,10 +995,8 @@ const firebaseConfig = {
             peerConnection = new RTCPeerConnection(rtcConfig);
             
             if (localStream) {
-    const tracks = localStream.getTracks();
-
-    tracks.forEach(track => {
-        console.log("Adding local track:", track.kind, track.id);
+    localStream.getTracks().forEach(track => {
+        console.log("TRACK PO DERGOHET:", track.kind, track.id, track.enabled);
 
         peerConnection.addTrack(track, localStream);
     });
@@ -976,33 +1006,54 @@ const firebaseConfig = {
 remoteVideo.srcObject = remoteStream;
 
             // KONTROLLUESI I RREPTË (GUARD) QË TË MOS TË NXJERRË TY NË EKRANIN E DYTË
-            peerConnection.ontrack = e => {
-    console.log("TRACK NGA PERDORUESI TJETER:", e.track.kind, e.track.id);
+            peerConnection.ontrack = (event) => {
+    console.log(
+        "TRACK NGA PERDORUESI TJETER:",
+        event.track.kind,
+        event.track.id,
+        "enabled:",
+        event.track.enabled,
+        "muted:",
+        event.track.muted
+    );
 
+    if (!event.track) return;
+
+    // Shto track-un e ardhur direkt
     if (!remoteStream) {
         remoteStream = new MediaStream();
     }
 
-    if (!remoteStream.getTracks().some(track => track.id === e.track.id)) {
-        remoteStream.addTrack(e.track);
+    const ekziston = remoteStream
+        .getTracks()
+        .some(track => track.id === event.track.id);
+
+    if (!ekziston) {
+        remoteStream.addTrack(event.track);
     }
 
     remoteVideo.srcObject = remoteStream;
 
+    // Shume e rendesishme per zerin
     remoteVideo.muted = false;
     remoteVideo.volume = 1;
 
-    remoteVideo.play().catch(() => {});
+    remoteVideo.play().catch(err => {
+        console.log("PLAY ERROR:", err);
+    });
+
+    // Kontrollo audio
+    if (event.track.kind === "audio") {
+        console.log("✅ AUDIO E PERDORUESIT TJETER U MOR!");
+    }
 
     setStatus("", false);
-
     chatInput.disabled = false;
     sendBtn.disabled = false;
-
     stopBtn.style.display = "inline-flex";
     skipBtn.style.display = "inline-flex";
 
-    listenChat(roomId);
+    listenChat(currentRoomId);
 };
 
             peerConnection.onicecandidate = e => {
