@@ -407,7 +407,7 @@
             collection, addDoc, query, getDocs, serverTimestamp, updateDoc 
         } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+      // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyBF0HmQbl833F0EndThqJs8mPGQLA9Y0JE",
   authDomain: "clipymax-d58fa.firebaseapp.com",
@@ -490,12 +490,15 @@ const firebaseConfig = {
                 skipBtn.style.display = "none";
             } else {
                 onlineBadge.classList.add("hidden");
-                startBtn.style.display = "none"; // Zhduket kur je në kërkim ose në chat
+                startBtn.style.display = "none";
             }
         }
 
         async function getMedia() {
-            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            localStream = await navigator.mediaDevices.getUserMedia({ 
+                video: { width: { ideal: 1280 }, height: { ideal: 720 } }, 
+                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } 
+            });
             localVideo.srcObject = localStream;
             btnMic.disabled = false;
             btnCam.disabled = false;
@@ -601,7 +604,13 @@ const firebaseConfig = {
             setStatus("Searching...", true);
 
             peerConnection = new RTCPeerConnection(rtcConfig);
-            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            
+            // Shtimi i track-eve të lokal stream në lidhje
+            if (localStream) {
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+            }
 
             peerConnection.ontrack = e => {
                 if(!remoteStream) {
@@ -649,16 +658,18 @@ const firebaseConfig = {
                     if(change.type === "added") {
                         const d = change.doc.data();
                         if(d.sender === currentUserId) return;
-                        if(d.type === 'offer' && !isInitiator) {
-                            await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: d.sdp }));
-                            const ans = await peerConnection.createAnswer();
-                            await peerConnection.setLocalDescription(ans);
-                            addSig(roomId, { type: 'answer', sdp: ans.sdp, sender: currentUserId });
-                        } else if(d.type === 'answer' && isInitiator) {
-                            await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: d.sdp }));
-                        } else if(d.type === 'ice' && d.candidate) {
-                            try { await peerConnection.addIceCandidate(new RTCIceCandidate(d.candidate)); } catch(e){}
-                        }
+                        try {
+                            if(d.type === 'offer' && !isInitiator) {
+                                await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: d.sdp }));
+                                const ans = await peerConnection.createAnswer();
+                                await peerConnection.setLocalDescription(ans);
+                                addSig(roomId, { type: 'answer', sdp: ans.sdp, sender: currentUserId });
+                            } else if(d.type === 'answer' && isInitiator) {
+                                await peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: d.sdp }));
+                            } else if(d.type === 'ice' && d.candidate) {
+                                await peerConnection.addIceCandidate(new RTCIceCandidate(d.candidate));
+                            }
+                        } catch(err) {}
                     }
                 });
             });
