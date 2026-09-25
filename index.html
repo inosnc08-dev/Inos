@@ -67,6 +67,12 @@
             color: var(--accent-red);
             font-size: 13px;
             font-weight: 500;
+            transition: opacity 0.3s ease;
+        }
+
+        .online-badge.hidden {
+            opacity: 0;
+            pointer-events: none;
         }
 
         .online-dot {
@@ -85,13 +91,13 @@
             overflow: hidden;
         }
 
-        /* Video Area - SPLIT SCREEN */
+        /* Video Area */
         .video-container {
             position: relative;
             background: #090d16;
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 2px;
+            gap: 3px;
             align-items: center;
             justify-content: center;
             overflow: hidden;
@@ -111,21 +117,35 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
-        #remoteVideo, #localVideo {
+        #remoteVideo {
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
-            object-fit: contain;
+            object-fit: cover;
             background: #000;
         }
 
-        /* ANIMACIONI DIREKT NË EKRANIN E TJETRIT (remote video box) */
+        #localVideo {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            background: #000;
+            transform: scaleX(-1);
+        }
+
+        /* Animacioni i kërkimit te kamera e tjetrit */
         .video-overlay-status {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(9, 13, 22, 0.85);
+            background: rgba(9, 13, 22, 0.88);
             backdrop-filter: blur(8px);
             display: none;
             flex-direction: column;
@@ -323,7 +343,7 @@
             .video-container {
                 grid-template-columns: 1fr;
                 grid-template-rows: 1fr 1fr;
-                padding: 55px 5px 5px 5px; /* hapësirë lart që të mos mbivendoset tek celulari */
+                padding: 5px;
             }
             .controls-bar { height: 70px; gap: 8px; }
             .ctrl-btn { width: 38px; height: 38px; font-size: 14px; }
@@ -335,7 +355,7 @@
 
     <header>
         <div class="logo"><i class="fa-solid fa-video"></i> InosChat</div>
-        <div class="online-badge">
+        <div class="online-badge" id="onlineBadge">
             <div class="online-dot"></div>
             <span id="onlineCount">1 online</span>
         </div>
@@ -343,7 +363,7 @@
 
     <div class="main-container">
         <div class="video-container">
-            <!-- Kamera e tjetrit (Remote) me animacionin e kërkimit sipër -->
+            <!-- Kamera e tjetrit (Remote) -->
             <div class="video-box">
                 <div class="video-overlay-status" id="videoOverlay">
                     <div class="epic-loader">
@@ -413,7 +433,7 @@ const firebaseConfig = {
         let localStream = null, remoteStream = null, peerConnection = null;
         let currentRoomId = null, partnerId = null, isSearching = false, isConnected = false;
         let waitingUnsub = null, roomUnsub = null, msgUnsub = null, sigUnsub = null;
-        let processedMsgIds = new Set(); // Për të shmangur dublikimin e mesazheve
+        let processedMsgIds = new Set();
 
         const rtcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
@@ -421,6 +441,7 @@ const firebaseConfig = {
         const remoteVideo = document.getElementById("remoteVideo");
         const videoOverlay = document.getElementById("videoOverlay");
         const statusTitle = document.getElementById("statusTitle");
+        const onlineBadge = document.getElementById("onlineBadge");
 
         const startBtn = document.getElementById("startBtn");
         const stopBtn = document.getElementById("stopBtn");
@@ -441,14 +462,37 @@ const firebaseConfig = {
                 
                 setInterval(async () => {
                     try { await updateDoc(userRef, { lastSeen: serverTimestamp() }); } catch(e){}
-                }, 10000);
+                }, 5000);
 
                 onSnapshot(collection(db, "presence"), snap => {
-                    onlineCount.textContent = `${snap.size} online`;
+                    const now = Date.now();
+                    let activeCount = 0;
+                    snap.forEach(d => {
+                        const data = d.data();
+                        if (data.lastSeen) {
+                            const timeDiff = now - data.lastSeen.toMillis();
+                            if (timeDiff < 15000) activeCount++;
+                        } else {
+                            activeCount++;
+                        }
+                    });
+                    onlineCount.textContent = `${Math.max(1, activeCount)} online`;
                 });
             } catch(e) {}
         }
         updatePresence();
+
+        function setHomeState(isHome) {
+            if (isHome) {
+                onlineBadge.classList.remove("hidden");
+                startBtn.style.display = "inline-flex";
+                stopBtn.style.display = "none";
+                skipBtn.style.display = "none";
+            } else {
+                onlineBadge.classList.add("hidden");
+                startBtn.style.display = "none"; // Zhduket kur je në kërkim ose në chat
+            }
+        }
 
         async function getMedia() {
             localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -485,10 +529,7 @@ const firebaseConfig = {
         stopBtn.addEventListener("click", async () => {
             await cleanupSession();
             setStatus("", false);
-            // Kthehet në gjendjen HOME: vetëm Start shfaqet
-            startBtn.style.display = "inline-flex";
-            stopBtn.style.display = "none";
-            skipBtn.style.display = "none";
+            setHomeState(true);
         });
 
         skipBtn.addEventListener("click", async () => {
@@ -499,8 +540,7 @@ const firebaseConfig = {
 
         function startSearch() {
             isSearching = true;
-            // Kur kërkon ose flet, shfaqen Skip dhe Stop
-            startBtn.style.display = "none";
+            setHomeState(false);
             stopBtn.style.display = "inline-flex";
             skipBtn.style.display = "inline-flex";
             setStatus("Searching...", true);
@@ -557,6 +597,7 @@ const firebaseConfig = {
         async function setupRTC(roomId, isInitiator) {
             isSearching = false;
             isConnected = true;
+            setHomeState(false);
             setStatus("Searching...", true);
 
             peerConnection = new RTCPeerConnection(rtcConfig);
@@ -572,8 +613,6 @@ const firebaseConfig = {
                 chatInput.disabled = false;
                 sendBtn.disabled = false;
                 
-                // Gjatë bisedës shfaqen Stop dhe Skip
-                startBtn.style.display = "none";
                 stopBtn.style.display = "inline-flex";
                 skipBtn.style.display = "inline-flex";
 
