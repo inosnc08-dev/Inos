@@ -85,38 +85,40 @@
             overflow: hidden;
         }
 
-        /* Video Area */
+        /* Video Area - SPLIT SCREEN */
         .video-container {
             position: relative;
             background: #090d16;
-            display: flex;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2px;
             align-items: center;
             justify-content: center;
             overflow: hidden;
+            padding: 10px;
         }
 
-        #remoteVideo {
+        .video-box {
+            position: relative;
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #remoteVideo, #localVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
             background: #000;
         }
 
-        #localVideo {
-            position: absolute;
-            bottom: 15px;
-            right: 15px;
-            width: 110px;
-            height: 150px;
-            object-fit: cover;
-            border-radius: 10px;
-            border: 2px solid var(--accent-red);
-            background: #222;
-            z-index: 5;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-        }
-
-        /* ANIMACIONI DIREKT NË EKRANIN E VIDEOS */
+        /* ANIMACIONI DIREKT NË EKRANIN E TJETRIT (remote video box) */
         .video-overlay-status {
             position: absolute;
             top: 0;
@@ -133,6 +135,7 @@
             color: white;
             text-align: center;
             gap: 20px;
+            border-radius: 12px;
         }
 
         .epic-loader {
@@ -317,10 +320,14 @@
                 grid-template-rows: 1fr 180px;
                 height: calc(100dvh - 60px - 70px);
             }
+            .video-container {
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr 1fr;
+                padding: 55px 5px 5px 5px; /* hapësirë lart që të mos mbivendoset tek celulari */
+            }
             .controls-bar { height: 70px; gap: 8px; }
             .ctrl-btn { width: 38px; height: 38px; font-size: 14px; }
             .btn-action { padding: 0 18px; height: 38px; font-size: 13px; }
-            #localVideo { width: 80px; height: 110px; bottom: 10px; right: 10px; }
         }
     </style>
 </head>
@@ -336,16 +343,22 @@
 
     <div class="main-container">
         <div class="video-container">
-            <div class="video-overlay-status" id="videoOverlay">
-                <div class="epic-loader">
-                    <div class="epic-ring"></div>
-                    <div class="epic-ring"></div>
+            <!-- Kamera e tjetrit (Remote) me animacionin e kërkimit sipër -->
+            <div class="video-box">
+                <div class="video-overlay-status" id="videoOverlay">
+                    <div class="epic-loader">
+                        <div class="epic-ring"></div>
+                        <div class="epic-ring"></div>
+                    </div>
+                    <h3 id="statusTitle">Searching...</h3>
                 </div>
-                <h3 id="statusTitle">Searching...</h3>
+                <video id="remoteVideo" autoplay playsinline></video>
             </div>
 
-            <video id="remoteVideo" autoplay playsinline></video>
-            <video id="localVideo" autoplay playsinline muted></video>
+            <!-- Kamera jote (Local) -->
+            <div class="video-box">
+                <video id="localVideo" autoplay playsinline muted></video>
+            </div>
         </div>
 
         <div class="chat-panel">
@@ -400,6 +413,7 @@ const firebaseConfig = {
         let localStream = null, remoteStream = null, peerConnection = null;
         let currentRoomId = null, partnerId = null, isSearching = false, isConnected = false;
         let waitingUnsub = null, roomUnsub = null, msgUnsub = null, sigUnsub = null;
+        let processedMsgIds = new Set(); // Për të shmangur dublikimin e mesazheve
 
         const rtcConfig = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
@@ -471,6 +485,7 @@ const firebaseConfig = {
         stopBtn.addEventListener("click", async () => {
             await cleanupSession();
             setStatus("", false);
+            // Kthehet në gjendjen HOME: vetëm Start shfaqet
             startBtn.style.display = "inline-flex";
             stopBtn.style.display = "none";
             skipBtn.style.display = "none";
@@ -484,9 +499,10 @@ const firebaseConfig = {
 
         function startSearch() {
             isSearching = true;
+            // Kur kërkon ose flet, shfaqen Skip dhe Stop
             startBtn.style.display = "none";
             stopBtn.style.display = "inline-flex";
-            skipBtn.style.display = "none";
+            skipBtn.style.display = "inline-flex";
             setStatus("Searching...", true);
             findMatch();
         }
@@ -556,8 +572,9 @@ const firebaseConfig = {
                 chatInput.disabled = false;
                 sendBtn.disabled = false;
                 
+                // Gjatë bisedës shfaqen Stop dhe Skip
                 startBtn.style.display = "none";
-                stopBtn.style.display = "none";
+                stopBtn.style.display = "inline-flex";
                 skipBtn.style.display = "inline-flex";
 
                 listenChat(roomId);
@@ -610,9 +627,14 @@ const firebaseConfig = {
 
         function listenChat(roomId) {
             if (!db) return;
+            processedMsgIds.clear();
             msgUnsub = onSnapshot(collection(db, "rooms", roomId, "messages"), snap => {
                 snap.docChanges().forEach(c => {
                     if(c.type === "added") {
+                        const msgId = c.doc.id;
+                        if (processedMsgIds.has(msgId)) return;
+                        processedMsgIds.add(msgId);
+                        
                         const m = c.doc.data();
                         appendMsg(m.text, m.senderId === currentUserId);
                     }
