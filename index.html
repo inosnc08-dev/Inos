@@ -522,16 +522,15 @@
             collection, addDoc, query, getDocs, serverTimestamp, updateDoc 
         } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyBF0HmQbl833F0EndThqJs8mPGQLA9Y0JE",
-  authDomain: "clipymax-d58fa.firebaseapp.com",
-  projectId: "clipymax-d58fa",
-  storageBucket: "clipymax-d58fa.firebasestorage.app",
-  messagingSenderId: "627962776666",
-  appId: "1:627962776666:web:9e680b4b17c6fd35fddc63",
-  measurementId: "G-E3WTDW93J0"
-};
+        const firebaseConfig = {
+          apiKey: "AIzaSyBF0HmQbl833F0EndThqJs8mPGQLA9Y0JE",
+          authDomain: "clipymax-d58fa.firebaseapp.com",
+          projectId: "clipymax-d58fa",
+          storageBucket: "clipymax-d58fa.firebasestorage.app",
+          messagingSenderId: "627962776666",
+          appId: "1:627962776666:web:9e680b4b17c6fd35fddc63",
+          measurementId: "G-E3WTDW93J0"
+        };
 
         let app, db;
         try {
@@ -753,15 +752,11 @@ const firebaseConfig = {
         ];
 
         const rtcConfig = {
-    iceServers: [
-        {
-            urls: "stun:stun.l.google.com:19302"
-        },
-        {
-            urls: "stun:stun1.l.google.com:19302"
-        }
-    ]
-};
+            iceServers: [
+                { urls: "stun:stun.l.google.com:19302" },
+                { urls: "stun:stun1.l.google.com:19302" }
+            ]
+        };
 
         const localVideo = document.getElementById("localVideo");
         const remoteVideo = document.getElementById("remoteVideo");
@@ -844,47 +839,28 @@ const firebaseConfig = {
             }
         }
 
-       async function getMedia() {
-    try {
-        localStream = await navigator.mediaDevices.getUserMedia({
-            video: {
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
-            },
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
+        async function getMedia() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    },
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+
+                localVideo.srcObject = localStream;
+                btnMic.disabled = false;
+                btnCam.disabled = false;
+            } catch (error) {
+                console.error("MIC/KAMERA ERROR:", error);
+                alert("Nuk u hap mikrofoni/kamera: " + error.message);
             }
-        });
-
-        console.log("🎤 AUDIO TRACKS:",
-            localStream.getAudioTracks().map(track => ({
-                id: track.id,
-                enabled: track.enabled,
-                muted: track.muted,
-                readyState: track.readyState
-            }))
-        );
-
-        console.log("📹 VIDEO TRACKS:",
-            localStream.getVideoTracks().map(track => ({
-                id: track.id,
-                enabled: track.enabled,
-                readyState: track.readyState
-            }))
-        );
-
-        localVideo.srcObject = localStream;
-
-        btnMic.disabled = false;
-        btnCam.disabled = false;
-
-    } catch (error) {
-        console.error("MIC/KAMERA ERROR:", error);
-        alert("Nuk u hap mikrofoni/kamera: " + error.message);
-    }
-}
+        }
 
         let isMuted = false;
         btnMic.addEventListener("click", () => {
@@ -994,67 +970,39 @@ const firebaseConfig = {
 
             peerConnection = new RTCPeerConnection(rtcConfig);
             
-            if (localStream) {
-    localStream.getTracks().forEach(track => {
-        console.log("TRACK PO DERGOHET:", track.kind, track.id, track.enabled);
-
-        peerConnection.addTrack(track, localStream);
-    });
-}
-
+            // Krijojmë MediaStream e re për palën tjetër qartësisht
             remoteStream = new MediaStream();
-remoteVideo.srcObject = remoteStream;
+            remoteVideo.srcObject = remoteStream;
+            remoteVideo.muted = false;
+            remoteVideo.volume = 1.0;
 
-            // KONTROLLUESI I RREPTË (GUARD) QË TË MOS TË NXJERRË TY NË EKRANIN E DYTË
+            if (localStream) {
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+            }
+
+            // Trajtimi i rregulluar i ontrack për të kapur audio dhe video saktë
             peerConnection.ontrack = (event) => {
-    console.log(
-        "TRACK NGA PERDORUESI TJETER:",
-        event.track.kind,
-        event.track.id,
-        "enabled:",
-        event.track.enabled,
-        "muted:",
-        event.track.muted
-    );
+                event.streams[0].getTracks().forEach(track => {
+                    // Sigurohemi që të mos shtojmë track-un tonë gabimisht
+                    if (!remoteStream.getTracks().some(t => t.id === track.id)) {
+                        remoteStream.addTrack(track);
+                    }
+                });
 
-    if (!event.track) return;
+                remoteVideo.play().catch(err => {
+                    console.log("Auto-play blocked or error:", err);
+                });
 
-    // Shto track-un e ardhur direkt
-    if (!remoteStream) {
-        remoteStream = new MediaStream();
-    }
+                setStatus("", false);
+                chatInput.disabled = false;
+                sendBtn.disabled = false;
+                stopBtn.style.display = "inline-flex";
+                skipBtn.style.display = "inline-flex";
 
-    const ekziston = remoteStream
-        .getTracks()
-        .some(track => track.id === event.track.id);
-
-    if (!ekziston) {
-        remoteStream.addTrack(event.track);
-    }
-
-    remoteVideo.srcObject = remoteStream;
-
-    // Shume e rendesishme per zerin
-    remoteVideo.muted = false;
-    remoteVideo.volume = 1;
-
-    remoteVideo.play().catch(err => {
-        console.log("PLAY ERROR:", err);
-    });
-
-    // Kontrollo audio
-    if (event.track.kind === "audio") {
-        console.log("✅ AUDIO E PERDORUESIT TJETER U MOR!");
-    }
-
-    setStatus("", false);
-    chatInput.disabled = false;
-    sendBtn.disabled = false;
-    stopBtn.style.display = "inline-flex";
-    skipBtn.style.display = "inline-flex";
-
-    listenChat(currentRoomId);
-};
+                listenChat(currentRoomId);
+            };
 
             peerConnection.onicecandidate = e => {
                 if(e.candidate) addSig(roomId, { type: 'ice', candidate: e.candidate.toJSON(), sender: currentUserId });
